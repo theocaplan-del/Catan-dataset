@@ -2,3 +2,4 @@ games/
 *.tar.gz
 __pycache__/
 *.pyc
+features.csv
