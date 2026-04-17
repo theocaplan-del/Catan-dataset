@@ -4,9 +4,9 @@ Analysis of 5 questions using endGameState fields only (no full event parse).
 VP key mapping (empirically verified - README had keys 2/3/4 wrong):
   "0" = settlement count       (1 VP each)
   "1" = city count             (2 VP each)
-  "2" = dev VP card count      (1 VP each)
-  "3" = longest road flag      (2 VP if 1)
-  "4" = largest army flag      (2 VP if 1)
+  "2" = dev VP card count      (1 VP each)  [hidden until win, not in type-20 events]
+  "3" = largest army flag      (2 VP if 1)  [achievementEnum 1]
+  "4" = longest road flag      (2 VP if 1)  [achievementEnum 0]
 """
 
 import json
@@ -47,9 +47,9 @@ for gf in game_files:
         s = vp.get("0", 0)
         c = vp.get("1", 0)
         dv = vp.get("2", 0)
-        lr = vp.get("3", 0)
-        la = vp.get("4", 0)
-        total_vp = s + c * 2 + dv + lr * 2 + la * 2
+        la = vp.get("3", 0)   # achievementEnum 1
+        lr = vp.get("4", 0)   # achievementEnum 0
+        total_vp = s + c * 2 + dv + la * 2 + lr * 2
 
         players.append({
             "color": color,
@@ -87,21 +87,21 @@ for w in all_winners:
     s_vp  = vp["s"]
     c_vp  = vp["c"] * 2
     dv_vp = vp["dv"]
-    lr_vp = vp["lr"] * 2
     la_vp = vp["la"] * 2
+    lr_vp = vp["lr"] * 2
 
     vp_sources["settlements"] += s_vp
     vp_sources["cities"]      += c_vp
     vp_sources["dev_vp_cards"] += dv_vp
-    vp_sources["longest_road"] += lr_vp
     vp_sources["largest_army"] += la_vp
+    vp_sources["longest_road"] += lr_vp
 
     # Dominant archetype: what's the largest single VP source?
     sources = {
-        "City Builder":    c_vp,
+        "City Builder":      c_vp,
         "Settlement Spread": s_vp,
-        "Achiever (LA+LR)": la_vp + lr_vp,
-        "Dev Card VP":     dv_vp,
+        "Achiever (LA+LR)":  la_vp + lr_vp,
+        "Dev Card VP":       dv_vp,
     }
     dominant = max(sources, key=sources.get)
     archetype_counts[dominant] += 1
@@ -124,9 +124,9 @@ for arch, cnt in sorted(archetype_counts.items(), key=lambda x: -x[1]):
     print(f"{arch:<24} {cnt:>8,}  {cnt/total_winners*100:>5.1f}%")
 
 # Fraction with each bonus
-has_la = sum(1 for w in all_winners if w["vp"]["la"] > 0)
-has_lr = sum(1 for w in all_winners if w["vp"]["lr"] > 0)
-has_dv = sum(1 for w in all_winners if w["vp"]["dv"] > 0)
+has_la = sum(1 for w in all_winners if w["vp"]["la"] > 0)  # key "3"
+has_lr = sum(1 for w in all_winners if w["vp"]["lr"] > 0)  # key "4"
+has_dv = sum(1 for w in all_winners if w["vp"]["dv"] > 0)  # key "2"
 print(f"\nBonus holdings among winners:")
 print(f"  Has Largest Army:  {has_la:,} / {total_winners:,} ({has_la/total_winners*100:.1f}%)")
 print(f"  Has Longest Road:  {has_lr:,} / {total_winners:,} ({has_lr/total_winners*100:.1f}%)")
