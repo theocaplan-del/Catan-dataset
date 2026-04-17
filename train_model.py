@@ -1,11 +1,15 @@
 """
-Win-rate prediction model (Option A).
+Win-rate prediction model.
 
 Trains a LightGBM binary classifier on per-player turn snapshots.
 Cross-validation is game-grouped (no game appears in both train and val).
 After CV, softmax-calibrates 4-player predictions per snapshot so they sum to 1.
+
+Usage:
+    python train_model.py [features_csv]   (defaults to features.csv)
 """
 
+import sys
 import pandas as pd
 import numpy as np
 import lightgbm as lgb
@@ -13,22 +17,41 @@ from sklearn.model_selection import GroupKFold
 from sklearn.metrics import roc_auc_score, brier_score_loss
 
 # ── Load data ──────────────────────────────────────────────────────────────────
-df = pd.read_csv("features.csv")
-print(f"Loaded {len(df):,} rows from {df['game_id'].nunique():,} games\n")
+csv_path = sys.argv[1] if len(sys.argv) > 1 else "features.csv"
+df = pd.read_csv(csv_path)
+print(f"Loaded {len(df):,} rows from {df['game_id'].nunique():,} games  [{csv_path}]\n")
 
 # Filter: only turns with some meaningful game state (skip very early snapshots)
 df = df[df["turn"] >= 10].copy()
 print(f"After filtering turn >= 10: {len(df):,} rows\n")
 
-FEATURES = [
+# Option A base features
+FEATURES_A = [
     "turn", "turn_frac", "turn_order",
     "income", "income_share",
     "settlements", "cities",
     "public_vp", "vp_lead", "vp_share",
     "dev_played", "knights_played",
     "times_robbed",
-    "la_flag", "lr_flag", "port_access",
+    "la_flag", "lr_flag",
 ]
+# Option A used 'port_access' (binary); Option B uses specific port flags
+if "port_access" in df.columns:
+    FEATURES_A.append("port_access")
+
+# Option B additional features (present only in features_full.csv)
+FEATURES_B = [
+    "pip_brick", "pip_wool", "pip_grain", "pip_ore", "pip_lumber",
+    "total_pip", "resource_diversity",
+    "income_brick", "income_wool", "income_grain", "income_ore", "income_lumber",
+    "dev_in_hand", "hand_size", "road_count",
+    "robber_on_my_tile",
+    "port_generic", "port_brick", "port_wool", "port_grain", "port_ore", "port_lumber",
+]
+
+FEATURES = FEATURES_A + [f for f in FEATURES_B if f in df.columns]
+print(f"Using {len(FEATURES)} features  "
+      f"({'Option B' if any(f in df.columns for f in FEATURES_B) else 'Option A'})\n")
 
 X      = df[FEATURES].values
 y      = df["is_winner"].values

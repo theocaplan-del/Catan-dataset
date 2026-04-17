@@ -3,3 +3,4 @@ games/
 __pycache__/
 *.pyc
 features.csv
+features_full.csv
