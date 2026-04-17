@@ -121,12 +121,16 @@ for gf in game_files:
         if total == 0:
             continue
         victim_frac = victim_income.get(rob_rt, 0) / total
+        victim_rank = final_rank.get(victim, 4)
+        victim_won  = (victim_rank == 1)
 
         placements.append({
             "pip":         tile_pips,
             "rt":          rob_rt,
             "victim_frac": victim_frac,
             "thief_won":   thief_won,
+            "victim_won":  victim_won,
+            "victim_rank": victim_rank,
         })
 
 print(f"Robber placements with identified thief: {len(pip_only):,}")
@@ -136,66 +140,82 @@ def wr(lst, key="thief_won"):
     wins = sum(x[key] for x in lst)
     return wins / len(lst) * 100 if lst else 0
 
-print("=" * 62)
-print("Q: Does targeting high-pip tiles improve the thief's win rate?")
-print("-" * 62)
-print(f"{'Pip':>5}  {'Dice':>8}  {'Placements':>12}  {'Thief WR':>10}")
-print("-" * 42)
+def victim_wr(lst):
+    wins = sum(x["victim_won"] for x in lst)
+    return wins / len(lst) * 100 if lst else 0
+
+def victim_avg_rank(lst):
+    return sum(x["victim_rank"] for x in lst) / len(lst) if lst else 0
 
 from collections import defaultdict as DD
+
+# ── Observed vs expected pip distribution (who gets targeted?) ─────────────────
+print("=" * 62)
+print("Q: Which tiles do thieves target? (observed vs expected)")
+print("-" * 62)
+
 pip_groups = DD(list)
 for p in pip_only:
     pip_groups[p["pip"]].append(p)
 
-pip_labels = {0:"7(desert)", 1:"2,12", 2:"3,11", 3:"4,10", 4:"5,9", 5:"6,8"}
-for pip in sorted(pip_groups):
-    grp = pip_groups[pip]
-    print(f"{pip:>5}  {pip_labels[pip]:>8}  {len(grp):>12,}  {wr(grp):>9.1f}%")
-
-# ── Observed vs expected pip distribution ─────────────────────────────────────
-print()
-total_p = sum(len(v) for v in pip_groups.values() if 0 not in [x["pip"] for x in v])
-total_all = len(pip_only)
 expected = {1:2/36, 2:4/36, 3:6/36, 4:8/36, 5:10/36}
-print("Observed vs expected % of placements (excl. desert):")
 non_desert = [p for p in pip_only if p["pip"] > 0]
 nd_total = len(non_desert)
-print(f"{'Pip':>5}  {'Observed%':>12}  {'Expected%':>12}  {'Ratio':>8}")
 pip_only_nod = DD(list)
 for p in non_desert:
     pip_only_nod[p["pip"]].append(p)
-for pip in sorted(expected):
-    obs = len(pip_only_nod[pip]) / nd_total * 100
+
+pip_labels = {0:"7(desert)", 1:"2,12", 2:"3,11", 3:"4,10", 4:"5,9", 5:"6,8"}
+print(f"{'Pip':>5}  {'Dice':>8}  {'Placements':>12}  {'Observed%':>10}  {'Expected%':>10}  {'Ratio':>7}")
+print("-" * 60)
+for pip in sorted(pip_only_nod):
+    grp = pip_only_nod[pip]
+    obs = len(grp) / nd_total * 100
     exp = expected[pip] / sum(expected.values()) * 100
     ratio = obs / exp if exp > 0 else 0
-    print(f"{pip:>5}  {obs:>11.1f}%  {exp:>11.1f}%  {ratio:>7.2f}x")
+    print(f"{pip:>5}  {pip_labels[pip]:>8}  {len(grp):>12,}  {obs:>9.1f}%  {exp:>9.1f}%  {ratio:>6.2f}x")
 
-# ── Scarcity vs abundance targeting ───────────────────────────────────────────
+# ── Does being robbed on a high-pip tile hurt the victim more? ─────────────────
 print()
 print("=" * 62)
-print("Q: Does targeting the victim's scarce vs abundant resource matter?")
+print("Q: Does being robbed on a high-pip tile hurt the VICTIM more?")
 print("-" * 62)
-print(f"{'Victim reliance':>22}  {'Placements':>12}  {'Thief WR':>10}")
-print("-" * 48)
+print(f"{'Pip':>5}  {'Dice':>8}  {'Placements':>12}  {'Victim WR':>11}  {'Victim avg rank':>16}")
+print("-" * 60)
+
+pip_victim_groups = DD(list)
+for p in placements:
+    pip_victim_groups[p["pip"]].append(p)
+
+for pip in sorted(pip_victim_groups):
+    grp = pip_victim_groups[pip]
+    print(f"{pip:>5}  {pip_labels.get(pip,'?'):>8}  {len(grp):>12,}  {victim_wr(grp):>10.1f}%  {victim_avg_rank(grp):>16.2f}")
+
+# ── Scarcity vs abundance: does it hurt more to lose a relied-upon resource? ───
+print()
+print("=" * 62)
+print("Q: Does being robbed of a scarce (relied-upon) resource hurt the VICTIM more?")
+print("-" * 62)
+print(f"{'Victim reliance':>22}  {'Placements':>12}  {'Victim WR':>11}  {'Victim avg rank':>16}")
+print("-" * 55)
 
 frac_groups = [[] for _ in range(5)]
 for p in placements:
     b = min(int(p["victim_frac"] * 5), 4)
     frac_groups[b].append(p)
 
-labels = ["0–20% (victim scarce)", "20–40%", "40–60%", "60–80%", "80–100% (abundant)"]
+labels = ["0–20% (scarce for victim)", "20–40%", "40–60%", "60–80%", "80–100% (abundant)"]
 for b, grp in enumerate(frac_groups):
-    print(f"{labels[b]:>22}  {len(grp):>12,}  {wr(grp):>9.1f}%")
+    print(f"{labels[b]:>25}  {len(grp):>12,}  {victim_wr(grp):>10.1f}%  {victim_avg_rank(grp):>16.2f}")
 
-# ── Resource type breakdown ────────────────────────────────────────────────────
+# ── Resource type: which stolen resource hurts most? ──────────────────────────
 print()
 print("=" * 62)
-print("Robber placement by resource type (% vs board frequency expected ~20%)")
+print("Victim outcome by robbed resource type")
 print("-" * 62)
-rt_groups = DD(list)
-for p in pip_only:
-    rt_groups[p["rt"]].append(p)
-total_rt = len(pip_only)
-for rt in sorted(rt_groups, key=lambda x: -len(rt_groups[x])):
-    grp = rt_groups[rt]
-    print(f"  {RESOURCES.get(rt,'?'):>8}: {len(grp):>7,}  ({len(grp)/total_rt*100:.1f}%)  thief WR {wr(grp):.1f}%")
+rt_victim_groups = DD(list)
+for p in placements:
+    rt_victim_groups[p["rt"]].append(p)
+for rt in sorted(rt_victim_groups, key=lambda x: -len(rt_victim_groups[x])):
+    grp = rt_victim_groups[rt]
+    print(f"  {RESOURCES.get(rt,'?'):>8}: {len(grp):>7,}  victim WR {victim_wr(grp):>5.1f}%  victim avg rank {victim_avg_rank(grp):.2f}")
